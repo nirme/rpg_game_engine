@@ -1,0 +1,25 @@
+#
+
+#filenames
+	RESOURCE_GRAPHIC		:		res_graphic.sqlite3
+	RESOURCE_SOUND			:		res_sound.sqlite3
+	RESOURCE_OTHER			:		res_other.sqlite3
+
+#engine_variables
+	MAX_ANIMATION_BONES		:		128
+	MAX_ANIMATION_SETS		:		32
+	MAX_ANIMATION_TRACKS	:		2
+	MAX_ANIMATION_EVENTS	:		30
+
+#filenames
+	LOG_APP_FILE			:		application.log
+	LOG_SERVER_FILE			:		server.log
+	LOG_CLIENT_FILE			:		client.log
+	LOGGER_ERROR_LIST		:		error_strings
+	D3D9_DEVICE_STATES_FILE :		gd_states
+
+#engine_variables
+	WINDOW_HEIGHT			:		1024
+	WINDOW_WIDTH			:		1280
+	GRAPHIC_DISPLAY_FORMAT	:		1
+	GRAPHIC_REFRESH_RATE	:		72

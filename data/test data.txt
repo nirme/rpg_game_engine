@@ -1,0 +1,8 @@
+INSERT INTO `mesh` (`id`, `name`, `fvf_declaration`, `faces_count`, `vertices_count`, `vertices_data`, `index_data`)
+			VALUES (1, "test_mesh", "FFFFFFFF", 10, 10, "878697867649364982378", "57238974832492378");
+
+	
+INSERT INTO `mesh_animation` (`mesh_id`, `animation_info_id`) VALUES (1, 15);
+
+INSERT INTO `animation_info` (`id`, `bones_number`, `frame_bone_data`, `animation_data`)
+					VALUES (15, 2, "4124324234234dedfdfabct", "5325346tyregf");

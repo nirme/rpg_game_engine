@@ -1,0 +1,15 @@
+#pragma once
+
+#ifndef _RENDER_CHUNK_V2
+#define _RENDER_CHUNK_V2
+
+
+
+class RenderChunkV2
+{
+private:
+	
+	
+};
+
+#endif //_RENDER_CHUNK_V2

@@ -1,0 +1,506 @@
+#pragma once
+
+#ifndef _LIGHTS_V2
+#define _LIGHTS_V2
+
+#include "utility.h"
+#include "World_Position_v4.h"
+
+
+
+#define		LIGHT_TYPE_UNDEFINED		0x00
+#define		LIGHT_TYPE_DIRECTIONAL		0x01
+#define		LIGHT_TYPE_OMNI				0x02
+#define		LIGHT_TYPE_SPOT				0x03
+
+
+// LIGHT STRUCT 
+// it's packed in array of floats / length is dividable by 4 - size of D3DXVECTOR4.
+// array has variable length
+//
+// attenuation note: 0 - constant, 1 - linear, 2 - quadratic
+// color diffuse note: RGB, light type (int)
+// color specular note: RGB, empty (user defined)
+//
+// +---------------------------+--------------------------------+
+// |  LIGHT TYPE: DIRECTIONAL  |  SIZE: 12x float / 3x VECTOR4  |
+// +------------------+--------+--------------+-----------------+
+// |    Variable      |  Position (flt/VEC4) |  Size (flt/VEC4) |
+// +------------------+----------------------+------------------+
+// |  direction       |    0 / 0             |    4 / 1         |
+// +------------------+----------------------+------------------+
+// |  color diffuse   |    4 / 1(0)          |    3 / 0(3)      |
+// +------------------+----------------------+------------------+
+// |  light type      |    7 / 1(3)          |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  color specular  |    8 / 2(0)          |    3 / 0(3)      |
+// +------------------+----------------------+------------------+
+// |  empty 1         |    11 / 2(3)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+//
+//
+// +-----------------------+------------------------------------+
+// |  LIGHT TYPE: OMNI     |  SIZE: 16x float / 4x VECTOR4      |
+// +------------------+----+-----------------+------------------+
+// |    Variable      |  Position (flt/VEC4) |  Size (flt/VEC4) |
+// +------------------+----------------------+------------------+
+// |  position        |    0 / 0             |    4 / 1         |
+// +------------------+----------------------+------------------+
+// |  color diffuse   |    4 / 1(0)          |    3 / 0(3)      |
+// +------------------+----------------------+------------------+
+// |  light type      |    7 / 1(3)          |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  color specular  |    8 / 2(0)          |    3 / 0(3)      |
+// +------------------+----------------------+------------------+
+// |  empty 1         |    11 / 2(3)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  range           |    12 / 3(0)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  attenuation 0   |    13 / 3(1)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  attenuation 1   |    14 / 3(2)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  attenuation 2   |    15 / 3(3)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+//
+//
+// +-----------------------+------------------------------------+
+// |  LIGHT TYPE: SPOT     |  SIZE: 24x float / 6x D3DXVECTOR4  |
+// +------------------+----+-----------------+------------------+
+// |    Variable      |  Position (flt/VEC4) |  Size (flt/VEC4) |
+// +------------------+----------------------+------------------+
+// |  position        |    0 / 0             |    4 / 1         |
+// +------------------+----------------------+------------------+
+// |  color diffuse   |    4 / 1(0)          |    3 / 0(3)      |
+// +------------------+----------------------+------------------+
+// |  light type      |    7 / 1(3)          |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  color specular  |    8 / 2(0)          |    3 / 0(3)      |
+// +------------------+----------------------+------------------+
+// |  empty 1         |    11 / 2(3)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  range           |    12 / 3(0)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  attenuation 0   |    13 / 3(1)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  attenuation 1   |    14 / 3(2)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  attenuation 2   |    15 / 3(3)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  cos( hotspot )  |    16 / 4(0)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  cos( cutoff )   |    17 / 4(1)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  falloff         |    18 / 4(2)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  empty 2         |    19 / 4(3)         |    1 / 0(1)      |
+// +------------------+----------------------+------------------+
+// |  direction       |    20 / 5            |    4 / 1         |
+// +------------------+----------------------+------------------+
+//
+
+
+class Light;
+class LightDirectional;
+class LightOmniDirectional;
+class LightSpot;
+
+bool light_compare ( const Light* first, const Light* second);
+bool light_compare ( const Light& first, const Light& second);
+
+
+class Light
+{
+private:
+
+	float* v4_lightDataArray;
+	D3DXVECTOR4* v4_lightDataVector;
+	UINT ui_lightDataVectorLength;
+
+	void setupLightArray( BYTE _bt_vector4Number )
+	{
+		SAFE_RELEASE_ARRAY( v4_lightDataArray );
+
+		v4_lightDataArray = new float [ _ui_vector4Number * 4 ];
+		v4_lightDataVector = reinterpret_cast <D3DXVECTOR4*> ( v4_lightDataArray );
+		ui_lightDataVectorLength = _ui_vector4Number;
+	};
+
+
+protected:
+
+	inline void setLightDataInArray( BYTE _bt_position, float _fl_value )
+	{
+		if ( _bt_position >= ( ui_lightDataVectorLength * 4 ) )
+			throw ApplicationException( "Light::setLightDataInArray called with invalid position" );
+		v4_lightDataArray[_bt_position] = _fl_value;
+	};
+
+	inline void setLightDataInArray( BYTE _bt_position, int _i_value )
+	{
+		if ( _bt_position >= ( ui_lightDataVectorLength * 4 ) )
+			throw ApplicationException( "Light::setLightDataInArray called with invalid position" );
+		v4_lightDataArray[_bt_position] = _i_value;
+	};
+
+	inline void setLightDataInArray( BYTE _bt_position, bool _bl_value )
+	{
+		if ( _bt_position >= ( ui_lightDataVectorLength * 4 ) )
+			throw ApplicationException( "Light::setLightDataInArray called with invalid position" );
+		v4_lightDataArray[_bt_position] = _bl_value ? 1.0f : 0.0f;
+	};
+
+
+	inline void setLightDataInVector( BYTE _bt_position, const D3DXVECTOR4* _v4_value )
+	{
+		if ( _bt_position >= ui_lightDataVectorLength )
+			throw ApplicationException( "Light::setLightDataInArray called with invalid position" );
+		v4_lightDataVector[_bt_position] = *_v4_value;
+	};
+
+	inline void setLightDataInVector( BYTE _bt_position, const D3DXVECTOR3* _v3_value )
+	{
+		if ( _bt_position >= ui_lightDataVectorLength )
+			throw ApplicationException( "Light::setLightDataInArray called with invalid position" );
+		v4_lightDataVector[_bt_position].x = _v3_value->x;
+		v4_lightDataVector[_bt_position].y = _v3_value->y;
+		v4_lightDataVector[_bt_position].z = _v3_value->z;
+	};
+
+	inline void setLightDataInVector( BYTE _bt_position, const D3DXCOLOR* _xc_value )
+	{
+		if ( _bt_position >= ui_lightDataVectorLength )
+			throw ApplicationException( "Light::setLightDataInArray called with invalid position" );
+		v4_lightDataVector[_bt_position].x = _xc_value->r;
+		v4_lightDataVector[_bt_position].y = _xc_value->g;
+		v4_lightDataVector[_bt_position].z = _xc_value->b;
+	};
+
+	inline void setLightDataInVector( BYTE _bt_position, BYTE _bt_vectorPosition, float _fl_value )
+	{
+		setLightDataInArray( _bt_position * 4 + _bt_vectorPosition, _fl_value );
+	};
+
+	inline void setLightDataInVector( BYTE _bt_position, BYTE _bt_vectorPosition, int _i_value )
+	{
+		setLightDataInArray( _bt_position * 4 + _bt_vectorPosition, _i_value );
+	};
+
+	inline void setLightDataInVector( BYTE _bt_position, BYTE _bt_vectorPosition, bool _bl_value )
+	{
+		setLightDataInArray( _bt_position * 4 + _bt_vectorPosition, _bl_value );
+	};
+
+
+
+	BYTE bt_priority;
+	const BYTE bt_lightType;
+	bool b_generateShadows;
+
+	D3DXCOLOR xc_color_diffuse; //RGBA
+	D3DXCOLOR xc_color_specular; //RGBA
+
+	WorldPosition* wp_transform;
+	DWORD dw_transformTimestamp;
+
+	Light( BYTE _bt_lightType, BYTE _bt_vector4Number, BYTE _bt_priority, bool _b_generateShadows, WorldPosition* _wp_transform = NULL ) : v4_lightDataArray(NULL), v4_lightDataVector(NULL), ui_lightDataVectorLength(0), bt_lightType(_bt_lightType), bt_priority(_bt_priority), b_generateShadows(_b_generateShadows), wp_transform(_wp_transform), xc_color_diffuse((DWORD)0), xc_color_specular((DWORD)0)
+	{
+		setupLightArray( _bt_vector4Number );
+	};
+
+	const D3DXMATRIX* updateWorldPosition()
+	{
+		if ( wp_transform )
+		{
+			DWORD dw_timestamp = wp_transform->getTransformationTimestamp();
+			if ( dw_transformTimestamp != dw_timestamp )
+			{
+				dw_transformTimestamp = dw_timestamp;
+				return wp_transform->getTransformationMatrix();
+			}
+		}
+		return NULL;
+	};
+
+public:
+
+	virtual ~Light()
+	{
+		SAFE_DELETE_ARRAY( v4_lightDataArray );
+	};
+
+	virtual void update() = 0;
+
+	inline WorldPosition* getWorldPosition()	{	return wp_transform;	};
+
+	void setWorldPosition( WorldPosition* _wp_transform )
+	{
+		wp_transform = _wp_transform;
+		dw_transformTimestamp = wp_transform ? ( wp_transform->getTransformationTimestamp() - 1 ) : -1;
+		update();
+	};
+
+
+	inline D3DXCOLOR getColorDiffuse()	{	return xc_color_diffuse;	};
+	void setColorDiffuse( const D3DXCOLOR& _xc_color )
+	{
+		xc_color_diffuse = _xc_color;
+		setLightDataInVector( 1, xc_color_diffuse );
+	};
+
+	inline D3DXCOLOR getColorSpecular()	{	return xc_color_specular;	};
+	void setColorSpecular( const D3DXCOLOR& _xc_color )
+	{
+		xc_color_specular = _xc_color;
+		setLightDataInVector( 2, xc_color_specular );
+	};
+
+	const D3DXVECTOR4* getLightDataVector( UINT* _pui_lightDataVectorLength )
+	{
+		update();
+		if ( _pui_lightDataVectorLength )
+			*_pui_lightDataVectorLength = ui_lightDataVectorLength;
+		return v4_lightDataVector;
+	};
+
+
+	inline BYTE getPriority()									{	return bt_priority;	};
+	inline void setPriority( BYTE _bt_priority )				{	bt_priority = _bt_priority;	};
+
+	inline BYTE getLightType()									{	return bt_lightType;	};
+
+	inline bool getShadowsGeneration()							{	return b_generateShadows;	};
+	inline void setShadowsGeneration( bool _b_generateShadows )	{	b_generateShadows = _b_generateShadows;	};
+
+
+	inline bool operator > (Light const & b)
+	{
+		if (lightType == b.lightType)
+			return priority > b.priority;
+		return lightType > b.lightType;
+	};
+};
+
+
+inline bool light_compare ( const Light* first, const Light* second)
+{
+	return (*first) < (*second);
+};
+
+inline bool light_compare ( const Light& first, const Light& second)
+{
+	return first < second;
+};
+
+
+
+class LightDirectional : public Light
+{
+protected:
+
+public:
+
+	LightDirectional( BYTE _bt_priority, bool _b_generateShadows, WorldPosition* _wp_transform = NULL ) : Light( LIGHT_TYPE_DIRECTIONAL, 3, _bt_priority, _b_generateShadows, _wp_transform )
+	{
+		setLightDataInArray( 7, LIGHT_TYPE_DIRECTIONAL );
+		setLightDataInArray( 11, 0 );
+		update();
+	};
+
+	virtual void update()
+	{
+		const D3DXMATRIX* mx_world = updateWorldPosition();
+		if ( mx_world )
+		{
+			D3DXVECTOR3 v3_tmp;
+			setLightDataInVector( 0, D3DXVec3Normalize( &v3_tmp, D3DXVec3TransformNormal( &v3_tmp, v3_facingDirectionNormalised, mx_world ) ) );
+		}
+	};
+};
+
+
+class LightOmniDirectional : public Light
+{
+protected:
+
+	float fl_range;
+	float fl_attenuation0;
+	float fl_attenuation1;
+	float fl_attenuation2;
+
+public:
+
+	LightOmniDirectional( BYTE _bt_priority, bool _b_generateShadows, float _fl_range, float _fl_attenuation0, float _fl_attenuation1, float _fl_attenuation2, WorldPosition* _wp_transform = NULL ) : Light( LIGHT_TYPE_OMNI, 4, _bt_priority, _b_generateShadows, _wp_transform ), fl_range(_fl_range), fl_attenuation0(_fl_attenuation0), fl_attenuation1(_fl_attenuation1), fl_attenuation2(_fl_attenuation2)
+	{
+		setLightDataInArray( 7, LIGHT_TYPE_OMNI );
+		setLightDataInArray( 11, 0.0f );
+		setLightDataInArray( 12, fl_range );
+		setLightDataInArray( 13, fl_attenuation0 );
+		setLightDataInArray( 14, fl_attenuation1 );
+		setLightDataInArray( 15, fl_attenuation2 );
+
+		update();
+	};
+
+	virtual void update()
+	{
+		const D3DXMATRIX* mx_world = updateWorldPosition();
+		if ( mx_world )
+		{
+			D3DXVECTOR3 v3_tmp;
+			D3DXVec3TransformCoord( &v3_tmp, &D3DXVECTOR3( 0.0f, 0.0f. 0.0f ), mx_world );
+			setLightDataInVector( 0, &D3DXVECTOR4( v3_tmp, 1.0f ) );
+			// use a little hack assuming the matrix is affine if we multiply a vector (1,0,0,0) by it we'll get (mx[0][0], mx[0][1], mx[0][2], mx[0][3]) = its perfect to find out total scale
+			setLightDataInArray( 12, fl_range * D3DXVec4Length( &D3DXVECTOR4( mx_world->m[0] ) ) );
+		}
+	};
+
+
+	void setRange( float _fl_range )
+	{
+		fl_range = _fl_range;
+		const D3DXMATRIX* mx_world = wp_transform->getTransformationMatrix();
+		setLightDataInArray( 12, fl_range * D3DXVec4Length( &D3DXVECTOR4( mx_world->m[0] ) ) );
+	};
+
+	inline float getRange()	{	return fl_range;	};
+
+
+	void setAttenuation( float _fl_attenuation0, float _fl_attenuation1, float _fl_attenuation2 )
+	{
+		setLightDataInArray( 13, fl_attenuation0 = _fl_attenuation0 );
+		setLightDataInArray( 14, fl_attenuation1 = _fl_attenuation1 );
+		setLightDataInArray( 15, fl_attenuation2 = _fl_attenuation2 );
+	};
+
+	void setAttenuation( float _fl_attenuationLinearity )
+	{
+		_fl_attenuationLinearity = saturate(_fl_attenuationLinearity);
+		setAttenuation( 0.0f, _fl_attenuationLinearity, 1.0f - _fl_attenuationLinearity );
+	};
+
+	void setLinearAttenuation()
+	{
+		setAttenuation( 0.0f, 1.0f, 0.0f );
+	};
+
+	void setQuadraticAttenuation()
+	{
+		setAttenuation( 0.0f, 0.0f, 1.0f );
+	};
+
+	void getAttenuation( float* _fl_attenuation0, float* _fl_attenuation1, float* _fl_attenuation2 )
+	{
+		if ( _fl_attenuation0 )		*_fl_attenuation0 = fl_attenuation0;
+		if ( _fl_attenuation1 )		*_fl_attenuation1 = fl_attenuation1;
+		if ( _fl_attenuation2 )		*_fl_attenuation2 = fl_attenuation2;
+	};
+
+};
+
+
+class LightSpot : public Light
+{
+protected:
+
+	float fl_range;
+	float fl_attenuation0;
+	float fl_attenuation1;
+	float fl_attenuation2;
+
+	float fl_cosHotspot;
+	float ft_cosCutoff;
+	float ft_falloff;
+
+
+public:
+
+
+	virtual void update()
+	{
+		const D3DXMATRIX* mx_world = updateWorldPosition();
+		if ( mx_world )
+		{
+			D3DXVECTOR3 v3_tmp;
+			D3DXVec3TransformCoord( &v3_tmp, &D3DXVECTOR3( 0.0f, 0.0f. 0.0f ), mx_world );
+			setLightDataInVector( 0, &D3DXVECTOR4( v3_tmp, 1.0f ) );
+			setLightDataInArray( 12, fl_range * D3DXVec4Length( &D3DXVECTOR4( mx_world->m[0] ) ) );
+			setLightDataInVector( 5, D3DXVec3Normalize( &v3_tmp, D3DXVec3TransformNormal( &v3_tmp, v3_facingDirectionNormalised, mx_world ) ) );
+		}
+	};
+
+
+	void setRange( float _fl_range )
+	{
+		fl_range = _fl_range;
+		const D3DXMATRIX* mx_world = wp_transform->getTransformationMatrix();
+		setLightDataInArray( 12, fl_range * D3DXVec4Length( &D3DXVECTOR4( mx_world->m[0] ) ) );
+	};
+
+	inline float getRange()	{	return fl_range;	};
+
+
+	void setAttenuation( float _fl_attenuation0, float _fl_attenuation1, float _fl_attenuation2 )
+	{
+		fl_attenuation0 = _fl_attenuation0;
+		fl_attenuation1 = _fl_attenuation1;
+		fl_attenuation2 = _fl_attenuation2;
+
+		setLightDataInArray( 13, fl_attenuation0 );
+		setLightDataInArray( 14, fl_attenuation1 );
+		setLightDataInArray( 15, fl_attenuation2 );
+	};
+
+	void setAttenuation( float _fl_attenuationLinearity )
+	{
+		setAttenuation( 0.0f, _fl_attenuationLinearity, 1.0f - _fl_attenuationLinearity );
+	};
+
+	void setLinearAttenuation()
+	{
+		setAttenuation( 0.0f, 1.0f, 0.0f );
+	};
+
+	void setQuadraticAttenuation()
+	{
+		setAttenuation( 0.0f, 0.0f, 1.0f );
+	};
+
+	void getAttenuation( float* _fl_attenuation0, float* _fl_attenuation1, float* _fl_attenuation2 )
+	{
+		if ( _fl_attenuation0 )		*_fl_attenuation0 = fl_attenuation0;
+		if ( _fl_attenuation1 )		*_fl_attenuation1 = fl_attenuation1;
+		if ( _fl_attenuation2 )		*_fl_attenuation2 = fl_attenuation2;
+	};
+
+
+	void setHotspot( float _fl_hotspotAngle )
+	{
+		fl_cosHotspot = cos( clip( _fl_hotspotAngle, 0.0f, D3DX_PI * 0.5f ) );
+		setLightDataInArray( 16, fl_cosHotspot );
+	};
+
+	inline float getHotspot()	{	return acos( fl_cosHotspot );	};
+
+
+	void setCutoff( float _fl_cutoffAngle )
+	{
+		ft_cosCutoff = cos( clip( _fl_cutoffAngle, 0.0f, D3DX_PI * 0.5f ) );
+		setLightDataInArray( 17, ft_cosCutoff );
+	};
+
+	inline float getCutoff()	{	return acos( ft_cosCutoff );	};
+
+
+	void setFalloff( float _ft_falloff )
+	{
+		ft_falloff = _ft_falloff;
+		setLightDataInArray( 18, ft_falloff );
+	};
+
+	inline float getFalloff()	{	return ft_falloff;	};
+
+};
+
+
+#endif //_LIGHTS_V2
